@@ -2,6 +2,10 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using System;
+using System.IO;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace Agent
 {
@@ -11,6 +15,7 @@ namespace Agent
         private readonly string _model;
         private readonly string _projectDirectory;
         private readonly string _baseUrl = "http://localhost:11434/api/chat";
+        private static readonly Random _random = new Random();
 
         public ReActAgent(Dictionary<string, Func<string[], object>> tools, string model, string projectDirectory)
         {
@@ -48,18 +53,18 @@ namespace Agent
                     Console.WriteLine($"\n\n💭 Thought: {thought}");
                 }
 
-                // 检测模型是否输出 Final Answer，如果是的话，直接返回
-                if (content.Contains("<final_answer>"))
-                {
-                    var finalAnswerMatch = Regex.Match(content, @"<final_answer>(.*?)</final_answer>", RegexOptions.Singleline);
-                    return finalAnswerMatch.Groups[1].Value;
-                }
-
-                // 检测 Action
+                // 优先检测 Action：如果有 action 则执行；否则如果有 final_answer 则返回结果；二者皆无则抛错
                 var actionMatch = Regex.Match(content, @"<action>(.*?)</action>", RegexOptions.Singleline);
                 if (!actionMatch.Success)
                 {
-                    throw new InvalidOperationException("模型未输出 <action>");
+                    // 没有 action，检查 final_answer
+                    if (content.Contains("<final_answer>"))
+                    {
+                        var finalAnswerMatch = Regex.Match(content, @"<final_answer>(.*?)</final_answer>", RegexOptions.Singleline);
+                        return finalAnswerMatch.Groups[1].Value;
+                    }
+
+                    throw new InvalidOperationException("模型未输出 <action> 或 <final_answer>");
                 }
 
                 var action = actionMatch.Groups[1].Value;
@@ -79,8 +84,125 @@ namespace Agent
 
                 try
                 {
-                    var observation = _tools[toolName](args);
+                    // 对文件相关工具，如果第一个参数是相对路径，则基于 _projectDirectory 解析为绝对路径
+                    string[] execArgs = args;
+                    if ((toolName == "read_file" || toolName == "write_to_file") && args.Length > 0)
+                    {
+                        var first = args[0];
+                        if (!Path.IsPathRooted(first))
+                        {
+                            var combined = Path.GetFullPath(Path.Combine(_projectDirectory, first));
+                            execArgs = (string[])args.Clone();
+                            execArgs[0] = combined;
+                        }
+                    }
+
+                    // 对于 run_terminal_command，做人性化预处理：
+                    // - 如果是 `dotnet new` 且输出路径是磁盘根（例如 D:\），则改为在根下创建子目录（使用 -n 指定的名称或从自然语言任务中推断名称）
+                    if (toolName == "run_terminal_command" && args.Length > 0)
+                    {
+                        try
+                        {
+                            var cmd = args[0];
+                            var trimmed = cmd.Trim();
+                            if (trimmed.StartsWith("dotnet new", StringComparison.OrdinalIgnoreCase))
+                            {
+                                // 查找 -o 或 --output 参数
+                                var outMatch = Regex.Match(trimmed, @"(?:--output|-o)
+\s+['""]?(?<out>[^'""\s]+)['""]?", RegexOptions.IgnoreCase);
+                                var nameMatch = Regex.Match(trimmed, @"(?:-n|--name)\s+['""]?(?<name>[^'""\s]+)['""]?", RegexOptions.IgnoreCase);
+
+                                string? outPath = outMatch.Success ? outMatch.Groups["out"].Value : null;
+                                string? projName = nameMatch.Success ? nameMatch.Groups["name"].Value : null;
+
+                                // 如果没有项目名，从 userInput 中尝试提取一个简单名称
+                                if (string.IsNullOrWhiteSpace(projName))
+                                {
+                                    // 尝试从首个中文/英文词中提取名称，比如 "创建一个netcore控制台程序 DemoApi 到D盘"
+                                    var nameGuess = Regex.Match(userInput ?? "", "([\\u4e00-\\u9fffA-Za-z0-9_-]{2,})");
+                                    if (nameGuess.Success)
+                                    {
+                                        projName = nameGuess.Groups[1].Value;
+                                    }
+                                    else
+                                    {
+                                        projName = "NewConsoleApp" + DateTime.Now.ToString("yyyyMMddHHmmss");
+                                    }
+                                }
+
+                                if (!string.IsNullOrWhiteSpace(outPath))
+                                {
+                                    // 如果输出是根目录（如 D:\ 或 C:\），改为在根目录下新建以 projName 命名的子目录
+                                    var rootDriveMatch = Regex.Match(outPath, @"^[A-Za-z]:\\?$");
+                                    if (rootDriveMatch.Success || outPath.EndsWith(":\\") || outPath.EndsWith(":/"))
+                                    {
+                                        var drive = outPath.TrimEnd('\\', '/');
+                                        var newOut = Path.Combine(drive + Path.DirectorySeparatorChar, projName);
+                                        trimmed = Regex.Replace(trimmed, @"(?:--output|-o)\s+['""]?[^'""\s]+['""]?", $"-o \"{newOut}\"");
+                                    }
+                                }
+                                else
+                                {
+                                    // 如果没有指定输出，默认在当前目录下创建子目录 projName
+                                    var newOut = Path.Combine(".", projName);
+                                    trimmed = trimmed + " -o " + newOut;
+                                }
+
+                                // 如果命令里没有 -n/--name，添加它以保证 csproj 名称正确
+                                if (!nameMatch.Success)
+                                {
+                                    trimmed = trimmed + " -n " + projName;
+                                }
+
+                                execArgs = (string[])args.Clone();
+                                execArgs[0] = trimmed;
+                                Console.WriteLine($"\n\n🔧 Preprocessed command -> {trimmed}");
+                            }
+                        }
+                        catch
+                        {
+                            // 解析/预处理失败则按原命令执行
+                        }
+                    }
+
+                    var observation = _tools[toolName](execArgs);
                     Console.WriteLine($"\n\n🔍 Observation：{observation}");
+
+                    // 若是终端命令，尝试基于命令推断可能的副作用路径并验证是否已创建
+                    if (toolName == "run_terminal_command" && execArgs.Length > 0)
+                    {
+                        try
+                        {
+                            var cmd = execArgs[0];
+                            var expected = DetermineExpectedPathsFromCommand(cmd);
+                            if (expected != null && expected.Count > 0)
+                            {
+                                var missing = new List<string>();
+                                foreach (var p in expected)
+                                {
+                                    var full = Path.IsPathRooted(p) ? p : Path.GetFullPath(Path.Combine(_projectDirectory, p));
+                                    if (!Directory.Exists(full) && !File.Exists(full))
+                                    {
+                                        missing.Add(full);
+                                    }
+                                }
+
+                                if (missing.Count > 0)
+                                {
+                                    observation += $" (VERIFICATION FAILED: Missing {string.Join(", ", missing)})";
+                                }
+                                else
+                                {
+                                    observation += " (VERIFICATION PASSED)";
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            // 验证出错时不阻塞主流程
+                        }
+                    }
+
                     var obsMsg = $"<observation>{observation}</observation>";
                     messages.Add(new Dictionary<string, object>
                     {
@@ -98,6 +220,37 @@ namespace Agent
                         { "role", "user" },
                         { "content", obsMsg }
                     });
+                }
+                // 如果工具是 write_to_file，或者执行的命令不是 build 但可能改变项目文件，自动触发一次 dotnet build 来验证
+                try
+                {
+                    bool shouldAutoBuild = false;
+                    if (toolName == "write_to_file") shouldAutoBuild = true;
+                    if (toolName == "run_terminal_command" && args.Length > 0)
+                    {
+                        var cmd = args[0].ToLowerInvariant();
+                        if (!cmd.Contains("dotnet build") && (cmd.Contains("new ") || cmd.Contains("add ") || cmd.Contains("rm ") || cmd.Contains("del ") || cmd.Contains("mv ") || cmd.Contains("move ") || cmd.Contains("git ")))
+                        {
+                            shouldAutoBuild = true;
+                        }
+                    }
+
+                    if (shouldAutoBuild && _tools.ContainsKey("run_terminal_command"))
+                    {
+                        var buildCmd = $"dotnet build \"{_projectDirectory}\"";
+                        var buildObs = _tools["run_terminal_command"](new[] { buildCmd });
+                        Console.WriteLine($"\n\n🔧 Auto-build Observation：{buildObs}");
+                        var buildMsg = $"<observation>{buildObs}</observation>";
+                        messages.Add(new Dictionary<string, object>
+                        {
+                            { "role", "user" },
+                            { "content", buildMsg }
+                        });
+                    }
+                }
+                catch (Exception)
+                {
+                    // 忽略自动构建中发生的错误，不影响主流程
                 }
             }
         }
@@ -198,17 +351,10 @@ namespace Agent
         /// <param name="text">要显示的文本</param>
         private async Task WriteWithTypewriterEffect(string text)
         {
-            // 使用静态Random实例避免频繁创建
-            static Random GetRandom() 
-            {
-                 Random _random = new Random();
-                return _random;
-            }
-            
             foreach (char c in text)
             {
                 Console.Write(c);
-                
+
                 // 对于某些特殊字符，稍微增加延迟以改善视觉效果
                 if (c == '.' || c == '!' || c == '?' || c == '\n')
                 {
@@ -221,7 +367,7 @@ namespace Agent
                 else
                 {
                     // 随机延迟0-2毫秒，创造更自然的打字机效果
-                    await Task.Delay(GetRandom().Next(0, 3));
+                    await Task.Delay(_random.Next(0, 3));
                 }
             }
             
@@ -328,6 +474,49 @@ namespace Agent
 
             // 返回原始字符串
             return argStr;
+        }
+
+        /// <summary>
+        /// 基于常见命令推断预期会被创建或修改的路径（文件或目录）。
+        /// 仅作启发式检测，不能覆盖所有情况。
+        /// </summary>
+        private List<string> DetermineExpectedPathsFromCommand(string command)
+        {
+            var results = new List<string>();
+            if (string.IsNullOrWhiteSpace(command)) return results;
+
+            try
+            {
+                // 查找 --output 或 -o 参数
+                var m = Regex.Match(command, @"(?:--output|-o)\s+['""]?(?<p>[^ '""]+)['""]?", RegexOptions.IgnoreCase);
+                if (m.Success)
+                {
+                    results.Add(m.Groups["p"].Value.Trim());
+                    return results;
+                }
+
+                // 查找 -n 项目名
+                m = Regex.Match(command, "-n\\s+['\"]?(?<name>[^\\s'\"]+)['\"]?", RegexOptions.IgnoreCase);
+                if (m.Success)
+                {
+                    var name = m.Groups["name"].Value.Trim();
+                    results.Add(name); // 目录名或 csproj 名称
+                    results.Add(name + ".csproj");
+                    return results;
+                }
+
+                // 针对 dotnet new 且无输出参数，默认在当前目录会产生项目文件（.csproj）或 Program.cs
+                if (command.IndexOf("dotnet new", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    results.Add("Program.cs");
+                }
+            }
+            catch
+            {
+                // 忽略解析错误
+            }
+
+            return results;
         }
 
         private string GetUserInput(string prompt)

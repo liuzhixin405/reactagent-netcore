@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System;
+using System.IO;
 
 namespace Agent
 {
@@ -11,10 +13,9 @@ namespace Agent
 
             var filePath = args[0];
             
-            // 如果是相对路径，尝试在当前目录和项目目录中查找
+            // 如果是相对路径，优先在当前工作目录中查找
             if (!Path.IsPathRooted(filePath))
             {
-                // 首先检查当前工作目录
                 var currentDirPath = Path.Combine(Environment.CurrentDirectory, filePath);
                 if (File.Exists(currentDirPath))
                 {
@@ -22,26 +23,10 @@ namespace Agent
                 }
                 else
                 {
-                    // 如果当前目录没有，尝试在用户提供的项目目录中查找
-                    foreach (var arg in args)
-                    {
-                        if (arg.Contains(Path.DirectorySeparatorChar.ToString()) || arg.Contains("/"))
-                        {
-                            var projectDir = Path.GetDirectoryName(arg);
-                            if (!string.IsNullOrEmpty(projectDir) && Directory.Exists(projectDir))
-                            {
-                                var projectDirPath = Path.Combine(projectDir, Path.GetFileName(filePath));
-                                if (File.Exists(projectDirPath))
-                                {
-                                    filePath = projectDirPath;
-                                    break;
-                                }
-                            }
-                        }
-                    }
+                    throw new FileNotFoundException($"文件未找到: {filePath}");
                 }
             }
-            
+
             return File.ReadAllText(filePath);
         }
 
@@ -85,13 +70,14 @@ namespace Agent
 
             using var process = Process.Start(startInfo);
             if (process == null)
-                return "执行失败";
+                return "EXIT_CODE:-1\n执行失败";
 
             var output = process.StandardOutput.ReadToEnd();
             var error = process.StandardError.ReadToEnd();
             process.WaitForExit();
 
-            return process.ExitCode == 0 ? output : error;
+            // 返回带有退出码的结构化文本，便于上层判断是否成功
+            return $"EXIT_CODE:{process.ExitCode}\n{output}{error}";
         }
 
         private static string GetShell()

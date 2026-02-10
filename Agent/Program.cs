@@ -16,7 +16,7 @@ class Program
         };
 
         // 创建Agent实例，使用本地Ollama的qwen2.5-coder:7b模型
-        var agent = new ReActAgent(tools, "qwen2.5-coder:7b", projectDirectory);
+        var agent = new ReActAgent(tools, "granite4", projectDirectory);
 
         Console.WriteLine("欢迎使用ReActAgent！输入 'quit' 或 'exit' 退出程序。");
 
