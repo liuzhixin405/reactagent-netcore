@@ -1,0 +1,16 @@
+D:\code\gemini-cli-csharp\src\GeminiCli.TestUtils\obj\Debug\net8.0\GeminiCli.TestUtils.csproj.AssemblyReference.cache
+D:\code\gemini-cli-csharp\src\GeminiCli.TestUtils\obj\Debug\net8.0\GeminiCli.TestUtils.GeneratedMSBuildEditorConfig.editorconfig
+D:\code\gemini-cli-csharp\src\GeminiCli.TestUtils\obj\Debug\net8.0\GeminiCli.TestUtils.AssemblyInfoInputs.cache
+D:\code\gemini-cli-csharp\src\GeminiCli.TestUtils\obj\Debug\net8.0\GeminiCli.TestUtils.AssemblyInfo.cs
+D:\code\gemini-cli-csharp\src\GeminiCli.TestUtils\obj\Debug\net8.0\GeminiCli.TestUtils.csproj.CoreCompileInputs.cache
+D:\code\gemini-cli-csharp\src\GeminiCli.TestUtils\bin\Debug\net8.0\GeminiCli.TestUtils.deps.json
+D:\code\gemini-cli-csharp\src\GeminiCli.TestUtils\bin\Debug\net8.0\GeminiCli.TestUtils.dll
+D:\code\gemini-cli-csharp\src\GeminiCli.TestUtils\bin\Debug\net8.0\GeminiCli.TestUtils.pdb
+D:\code\gemini-cli-csharp\src\GeminiCli.TestUtils\bin\Debug\net8.0\GeminiCli.Core.dll
+D:\code\gemini-cli-csharp\src\GeminiCli.TestUtils\bin\Debug\net8.0\GeminiCli.Core.pdb
+D:\code\gemini-cli-csharp\src\GeminiCli.TestUtils\bin\Debug\net8.0\GeminiCli.Core.xml
+D:\code\gemini-cli-csharp\src\GeminiCli.TestUtils\obj\Debug\net8.0\GeminiCl.170B72CA.Up2Date
+D:\code\gemini-cli-csharp\src\GeminiCli.TestUtils\obj\Debug\net8.0\GeminiCli.TestUtils.dll
+D:\code\gemini-cli-csharp\src\GeminiCli.TestUtils\obj\Debug\net8.0\refint\GeminiCli.TestUtils.dll
+D:\code\gemini-cli-csharp\src\GeminiCli.TestUtils\obj\Debug\net8.0\GeminiCli.TestUtils.pdb
+D:\code\gemini-cli-csharp\src\GeminiCli.TestUtils\obj\Debug\net8.0\ref\GeminiCli.TestUtils.dll
