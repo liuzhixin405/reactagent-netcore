@@ -1,6 +1,0 @@
-D:\code\gemini-cli-csharp\src\GeminiCli.Cli\bin\Debug\net8.0\NetCoreWebApi\obj\Debug\net6.0\rpswa.dswa.cache.json
-D:\code\gemini-cli-csharp\src\GeminiCli.Cli\bin\Debug\net8.0\NetCoreWebApi\obj\Debug\net6.0\NetCoreWebApi.GeneratedMSBuildEditorConfig.editorconfig
-D:\code\gemini-cli-csharp\src\GeminiCli.Cli\bin\Debug\net8.0\NetCoreWebApi\obj\Debug\net6.0\NetCoreWebApi.AssemblyInfoInputs.cache
-D:\code\gemini-cli-csharp\src\GeminiCli.Cli\bin\Debug\net8.0\NetCoreWebApi\obj\Debug\net6.0\NetCoreWebApi.AssemblyInfo.cs
-D:\code\gemini-cli-csharp\src\GeminiCli.Cli\bin\Debug\net8.0\NetCoreWebApi\obj\Debug\net6.0\NetCoreWebApi.csproj.CoreCompileInputs.cache
-D:\code\gemini-cli-csharp\src\GeminiCli.Cli\bin\Debug\net8.0\NetCoreWebApi\obj\Debug\net6.0\NetCoreWebApi.MvcApplicationPartsAssemblyInfo.cache

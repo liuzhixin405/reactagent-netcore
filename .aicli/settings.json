@@ -1,0 +1,7 @@
+{
+  "apiKey": "ollama",
+  "baseUrl": "http://localhost:11434",
+  "embeddingModel": "bge-m3",
+  "thinkingModel": "gpt-oss:20b",
+  "fastModel": "qwen2.5-coder:7b"
+}
